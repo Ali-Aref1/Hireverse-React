@@ -8,6 +8,7 @@ export default {
     extend: {
       colors: {
         primary: '#022A46',
+        secondary: '#154a83'
       },
       backgroundImage: {
         'base': "url('/src/assets/bg/bg.png')",
