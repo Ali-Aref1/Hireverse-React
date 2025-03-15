@@ -47,7 +47,7 @@ export const Interview = () => {
         Back
       </Link>
       <div className="w-full h-full flex flex-col items-center justify-center">
-        <div className="w-full p-4 border border-gray-300 rounded mb-4">
+        <div className="w-1/2 p-4 border border-gray-300 rounded mb-4">
           {chat.map((message, index) => (
             <div key={index} className="flex gap-2">
               <div className="font-bold">{message.sender}:</div>
