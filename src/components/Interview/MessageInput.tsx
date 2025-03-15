@@ -31,7 +31,7 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
       />
-      <button className='bg-white rounded-full p-2' onClick={handleSend}>
+      <button className={`bg-white rounded-full p-2 ${input.trim() === '' && "opacity-50"}`} onClick={handleSend} disabled={input.trim() === ''}>
         <Send className="w-10 h-10" color="#022A46" />
       </button>
     </div>
