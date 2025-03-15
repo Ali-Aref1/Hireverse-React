@@ -24,10 +24,10 @@ export const Interview = () => {
   }, [navigate]);
 
   const handleSend = async (message: string) => {
-    console.log('Sending message:', message); // Add this line
+    console.log('Sending message:', message);
     try {
-      const res = await axios.post('http://localhost:5000/generate', { input: message });
-      console.log('Response:', res.data); // Add this line
+      const res = await axios.post('http://localhost:3000/generate', { prompt: message });
+      console.log('Response:', res.data);
       setResponse(res.data.generated_text);
     } catch (error) {
       console.error('Error generating text:', error);
