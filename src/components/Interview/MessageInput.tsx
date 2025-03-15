@@ -15,6 +15,12 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSend();
+    }
+  };
+
   return (
     <div className="flex items-center gap-4 justify-center w-1/2 bg-secondary p-4 rounded-full">
       <input
@@ -23,6 +29,7 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
         placeholder="Type your message here"
         value={input}
         onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
       />
       <button className='bg-white rounded-full p-2' onClick={handleSend}>
         <Send className="w-10 h-10" color="#022A46" />
