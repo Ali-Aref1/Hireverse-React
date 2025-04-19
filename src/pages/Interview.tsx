@@ -3,6 +3,9 @@ import { BsArrowLeftCircleFill as Arrow } from 'react-icons/bs';
 import { MessageInput } from '../components/Interview/MessageInput';
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
+
+
+
 import axios from 'axios';
 interface Message {
   sender: string;
@@ -10,6 +13,7 @@ interface Message {
 }
 export const Interview = () => {
   const [chat, setChat] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,15 +30,35 @@ export const Interview = () => {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    const fetchInitialMessage = async () => {
+      try {
+        setChat([]); // Clear chat before fetching
+        const res = await axios.get('http://localhost:3000/start_interview');
+        const initialMessage: Message = { sender: 'Interviewer', message: res.data.response };
+        console.log('Initial message:', initialMessage);
+        setChat([initialMessage]);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching initial message:', error);
+      }
+    };
+
+    fetchInitialMessage();
+  }, []);
+    
+
   const handleSend = async (message: string) => {
     console.log('Sending message:', message);
+    setLoading(true);
     try {
       const newMessage: Message = { sender: 'You', message: message };
       setChat((prevChat) => [...prevChat, newMessage]);
-      const res = await axios.post('http://localhost:3000/generate', { prompt: message });
-      const responseMessage: Message = { sender: 'AI', message: res.data };
-      console.log('Received response:', responseMessage);
+      const res = await axios.post('http://localhost:3000/send_prompt', { user_input: message });
+      const responseMessage: Message = { sender: 'Interviewer', message: res.data.response };
       setChat((prevChat) => [...prevChat, responseMessage]);
+      setLoading(false);
+      console.log('Received response:', responseMessage);
     } catch (error) {
       console.error('Error generating text:', error);
     }
@@ -47,15 +71,15 @@ export const Interview = () => {
         Back
       </Link>
       <div className="w-full h-full flex flex-col items-center justify-center">
-        <div className="w-1/2 p-4 border border-gray-300 rounded mb-4">
+        <div className="w-1/2 p-4 border border-gray-300 rounded mb-4 bg-slate-500">
           {chat.map((message, index) => (
             <div key={index} className="flex gap-2">
               <div className="font-bold">{message.sender}:</div>
-              <div>{message.message}</div>
+              <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
             </div>
           ))}
         </div>
-        <MessageInput onSend={handleSend} />
+        <MessageInput onSend={handleSend} loading={loading} />
       </div>
     </>
   );

@@ -3,6 +3,7 @@ import { Home } from './pages/Home'
 import { Interview } from './pages/Interview'
 
 function App() {
+  
   return (
     <>
       <div className="w-screen h-screen overflow-hidden bg-primary z-0 relative text-white bg-base">
