@@ -33,7 +33,6 @@ export const Interview = () => {
   useEffect(() => {
     const fetchInitialMessage = async () => {
       try {
-        setChat([]); // Clear chat before fetching
         const res = await axios.get('http://localhost:3000/start_interview');
         const initialMessage: Message = { sender: 'Interviewer', message: res.data.response };
         console.log('Initial message:', initialMessage);
@@ -44,7 +43,7 @@ export const Interview = () => {
       }
     };
 
-    fetchInitialMessage();
+    if(chat.length===0)fetchInitialMessage();
   }, []);
     
 
@@ -70,16 +69,19 @@ export const Interview = () => {
         <Arrow className="w-10 h-10" />
         Back
       </Link>
-      <div className="w-full h-full flex flex-col items-center justify-center">
-        <div className="w-1/2 p-4 border border-gray-300 rounded mb-4 bg-slate-500">
+      <div className="w-full h-full flex flex-col items-center justify-center text-sm">
+        <div className='w-4/5 h-screen flex flex-col pb-10 pt-20 justify-between'>
+        <div className="w-full p-4 border border-gray-300 rounded bg-slate-500 grid overflow-y-auto h-4/5" style={{ display: 'grid', gridTemplateColumns: '100px auto', rowGap: '10px' }}>
           {chat.map((message, index) => (
-            <div key={index} className="flex gap-2">
+            <>
               <div className="font-bold">{message.sender}:</div>
               <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
-            </div>
+            </>
           ))}
         </div>
         <MessageInput onSend={handleSend} loading={loading} />
+      </div>
+      
       </div>
     </>
   );
