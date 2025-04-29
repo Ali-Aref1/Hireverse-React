@@ -1,23 +1,52 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useContext, useRef } from 'react';
 import { BsArrowLeftCircleFill as Arrow } from 'react-icons/bs';
 import { MessageInput } from '../components/Interview/MessageInput';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { PulseLoader } from 'react-spinners';
+import { UserContext } from '../App';
+import { io, Socket } from 'socket.io-client';
 
-
-
-import axios from 'axios';
 interface Message {
   sender: string;
   message: string;
 }
+
 export const Interview = () => {
   const [chat, setChat] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null); // Store socket in state
   const navigate = useNavigate();
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const userContext = useContext(UserContext);
+
+  if (!userContext) {
+    throw new Error('UserContext is not defined');
+  }
+  const { user } = userContext;
+  if (!user) return <Navigate to="/" />;
+
+  useEffect(() => {
+    const NodeSocket = io('http://localhost:3000'); // Initialize socket
+    setSocket(NodeSocket); // Store socket in state
+
+    NodeSocket.on('connect', () => {
+      console.log('Connected to socket server');
+      console.log(user);
+      NodeSocket.emit('attach_user', user); // Send the user data to the server to attach it to the socket id
+    });
+
+    NodeSocket.on('ai_response', (response:string) => {
+      const newMessage: Message = { sender: 'Interviewer', message: response };
+      setChat((prevChat) => [...prevChat, newMessage]);
+    });
+
+    return () => {
+      NodeSocket.disconnect(); // Disconnect socket on cleanup
+      setSocket(null); // Clear socket from state
+    };
+  }, [user]);
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -43,45 +72,22 @@ export const Interview = () => {
   }, [navigate]);
 
   useEffect(() => {
-    const fetchInitialMessage = async () => {
-      try {
-        const res = await axios.get('http://localhost:3000/start_interview');
-        const initialMessage: Message = { sender: 'Interviewer', message: res.data.response };
-        console.log('Initial message:', initialMessage);
-        setChat([initialMessage]);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching initial message:', error);
-      }
-    };
-
-    if(chat.length===0)fetchInitialMessage();
-  }, []);
-
-  
-  useEffect(() => {
     scrollToBottom();
-  }, [chat,showTyping]);
+  }, [chat, showTyping]);
 
   const handleSend = async (message: string) => {
     console.log('Sending message:', message);
     setLoading(true);
-    const timeout=setTimeout(() => {
-      setShowTyping(true);
-    }
-    , 1000); // Show typing indicator after 1 second
     try {
       const newMessage: Message = { sender: 'You', message: message };
       setChat((prevChat) => [...prevChat, newMessage]);
-      const res = await axios.post('http://localhost:3000/send_prompt', { user_input: message });
-      const responseMessage: Message = { sender: 'Interviewer', message: res.data.response };
-      setChat((prevChat) => [...prevChat, responseMessage]);
-      setLoading(false);
-      setShowTyping(false);
-      clearTimeout(timeout);
-      console.log('Received response:', responseMessage);
+      if (socket) {
+        socket.emit('message', newMessage.message); // Emit message to the server
+      }
     } catch (error) {
       console.error('Error generating text:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -92,33 +98,33 @@ export const Interview = () => {
         Back
       </Link>
       <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
-        <div className='w-4/5 h-screen flex flex-col pb-10 pt-20 justify-between'>
-        <div className="w-full p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto h-4/5 flex flex-col gap-4" ref={chatContainerRef}>
-          {chat.map((message, index) => (
-            <div
-              key={index}
-            >
-              <div
-          className={`w-full px-4 py-2 rounded-lg ${
-            message.sender === 'You' ? 'bg-white text-gray-900' : 'bg-slate-700 text-white'
-          }`}
-              >
-          <div className="text-sm font-bold">{message.sender}</div>
-          <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
+        <div className="w-4/5 h-screen flex flex-col pb-10 pt-20 justify-between">
+          <div
+            className="w-full p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto h-4/5 flex flex-col gap-4"
+            ref={chatContainerRef}
+          >
+            {chat.map((message, index) => (
+              <div key={index}>
+                <div
+                  className={`w-full px-4 py-2 rounded-lg ${
+                    message.sender === 'You' ? 'bg-white text-gray-900' : 'bg-slate-700 text-white'
+                  }`}
+                >
+                  <div className="text-sm font-bold">{message.sender}</div>
+                  <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
             {showTyping && (
-            <div
-              className='bg-slate-700 text-white w-20 px-4 py-4 rounded-lg flex items-center justify-center animate-fade-in'
-            >
-              <PulseLoader size={7} color={"white"}></PulseLoader>
-            </div>
+              <div
+                className="bg-slate-700 text-white w-20 px-4 py-4 rounded-lg flex items-center justify-center animate-fade-in"
+              >
+                <PulseLoader size={7} color={'white'}></PulseLoader>
+              </div>
             )}
+          </div>
+          <MessageInput onSend={handleSend} loading={loading} />
         </div>
-        <MessageInput onSend={handleSend} loading={loading} />
-      </div>
-      
       </div>
     </>
   );
