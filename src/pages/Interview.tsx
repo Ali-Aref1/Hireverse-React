@@ -14,13 +14,13 @@ interface Message {
 
 export const Interview = () => {
   const [chat, setChat] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [showTyping, setShowTyping] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showTyping, setShowTyping] = useState(true);
   const [socket, setSocket] = useState<Socket | null>(null); // Store socket in state
   const navigate = useNavigate();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const userContext = useContext(UserContext);
-
+  let timeout: number | null = null; // Declare timeout variable
   if (!userContext) {
     throw new Error('UserContext is not defined');
   }
@@ -40,6 +40,9 @@ export const Interview = () => {
     NodeSocket.on('ai_response', (response:string) => {
       const newMessage: Message = { sender: 'Interviewer', message: response };
       setChat((prevChat) => [...prevChat, newMessage]);
+      if(timeout)clearTimeout(timeout); // Clear timeout for typing indicator
+      setLoading(false);
+      setShowTyping(false); // Hide typing indicator
     });
 
     return () => {
@@ -78,17 +81,12 @@ export const Interview = () => {
   const handleSend = async (message: string) => {
     console.log('Sending message:', message);
     setLoading(true);
-    try {
       const newMessage: Message = { sender: 'You', message: message };
       setChat((prevChat) => [...prevChat, newMessage]);
+      timeout = setTimeout(() => setShowTyping(true), 500); // Show typing indicator after 1 second
       if (socket) {
         socket.emit('message', newMessage.message); // Emit message to the server
       }
-    } catch (error) {
-      console.error('Error generating text:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
