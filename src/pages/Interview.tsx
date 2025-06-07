@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { PulseLoader } from 'react-spinners';
 import { UserContext } from '../App';
 import { io, Socket } from 'socket.io-client';
+import WebcamStream from '../components/Interview/WebcamStream';
 
 interface Message {
   sender: string;
@@ -32,8 +33,6 @@ export const Interview = () => {
     setSocket(NodeSocket); // Store socket in state
 
     NodeSocket.on('connect', () => {
-      console.log('Connected to socket server');
-      console.log(user);
       NodeSocket.emit('attach_user', user); // Send the user data to the server to attach it to the socket id
     });
 
@@ -45,7 +44,15 @@ export const Interview = () => {
       setShowTyping(false); // Hide typing indicator
     });
 
+    NodeSocket.on('message_history', (history: Message[]) => {
+      setChat(history);
+      setLoading(false);
+      setShowTyping(false);
+    });
+
     return () => {
+      // Only emit end_session if user is navigating away via UI (not on disconnect)
+      NodeSocket.emit('end_session');
       NodeSocket.disconnect(); // Disconnect socket on cleanup
       setSocket(null); // Clear socket from state
     };
@@ -79,7 +86,6 @@ export const Interview = () => {
   }, [chat, showTyping]);
 
   const handleSend = async (message: string) => {
-    console.log('Sending message:', message);
     setLoading(true);
       const newMessage: Message = { sender: 'You', message: message };
       setChat((prevChat) => [...prevChat, newMessage]);
@@ -95,6 +101,10 @@ export const Interview = () => {
         <Arrow className="w-10 h-10" />
         Back
       </Link>
+      {/* Add webcam stream in the top right corner */}
+      <div style={{ position: "absolute", top: 24, right: 24, zIndex: 10 }}>
+        {socket && <WebcamStream socket={socket} userId={user.id} />}
+      </div>
       <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
         <div className="w-4/5 h-screen flex flex-col pb-10 pt-20 justify-between">
           <div
