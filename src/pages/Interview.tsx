@@ -21,7 +21,7 @@ export const Interview = () => {
   const navigate = useNavigate();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const userContext = useContext(UserContext);
-  let timeout: number | null = null; // Declare timeout variable
+  let timeout: ReturnType<typeof setTimeout> | null = null; // Declare timeout variable
   if (!userContext) {
     throw new Error('UserContext is not defined');
   }
@@ -101,10 +101,7 @@ export const Interview = () => {
         <Arrow className="w-10 h-10" />
         Back
       </Link>
-      {/* Add webcam stream in the top right corner */}
-      <div style={{ position: "absolute", top: 24, right: 24, zIndex: 10 }}>
         {socket && <WebcamStream socket={socket} userId={user.id} />}
-      </div>
       <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
         <div className="w-4/5 h-screen flex flex-col pb-10 pt-20 justify-between">
           <div

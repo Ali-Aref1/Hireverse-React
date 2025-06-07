@@ -1,16 +1,97 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Socket } from "socket.io-client";
+import { useSpring, animated } from "@react-spring/web";
 
 interface WebcamStreamProps {
   socket: Socket;
   userId: string;
 }
 
+const WEBCAM_WIDTH = 340;
+const WEBCAM_HEIGHT = 240; // Adjust if needed
+
 const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  // Drag state
+  const [dragging, setDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+
+  // Committed position state
+  const [committedPos, setCommittedPos] = useState({
+    x: window.innerWidth - WEBCAM_WIDTH - 24,
+    y: 24,
+  });
+
+  // Spring for position
+  const [{ x, y }, api] = useSpring(() => ({
+    x: window.innerWidth - WEBCAM_WIDTH - 24,
+    y: 24,
+    config: { tension: 300, friction: 30 },
+  }));
+
+  // Helper to get bounds
+  const getBoundedPosition = (clientX: number, clientY: number) => {
+    const minX = 0;
+    const minY = 0;
+    const maxX = window.innerWidth - WEBCAM_WIDTH;
+    const maxY = window.innerHeight - WEBCAM_HEIGHT;
+    let newX = clientX - dragOffset.current.x;
+    let newY = clientY - dragOffset.current.y;
+    newX = Math.max(minX, Math.min(newX, maxX));
+    newY = Math.max(minY, Math.min(newY, maxY));
+    return { x: newX, y: newY };
+  };
+
+  // Drag handlers
+  const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Get the current animated position
+    const currentX = x.get();
+    const currentY = y.get();
+    // Commit the spring to the current position before starting drag
+    api.start({ x: currentX, y: currentY, immediate: true });
+    setCommittedPos({ x: currentX, y: currentY });
+    setDragging(true);
+    // Use the current position for drag offset
+    dragOffset.current = {
+      x: e.clientX - currentX,
+      y: e.clientY - currentY,
+    };
+    document.body.style.userSelect = "none";
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (dragging) {
+        const bounded = getBoundedPosition(e.clientX, e.clientY);
+        api.start({ x: bounded.x, y: bounded.y });
+      }
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      setDragging(false);
+      document.body.style.userSelect = "";
+      const bounded = getBoundedPosition(e.clientX, e.clientY);
+      setCommittedPos(bounded); // <-- Save the last position
+      api.start({ x: bounded.x, y: bounded.y });
+    };
+    if (dragging) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.userSelect = "";
+    };
+  }, [dragging, api]);
+
+  // Keep the spring in sync with committedPos (e.g. on mount)
+  useEffect(() => {
+    api.start({ x: committedPos.x, y: committedPos.y });
+  }, [committedPos, api]);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -120,9 +201,27 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
   }, [socket, userId]);
 
   return (
-    <div>
-      <video ref={videoRef} autoPlay muted style={{ width: 320, borderRadius: 8 }} />
-    </div>
+    <animated.div
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        zIndex: 10,
+        cursor: dragging ? "grabbing" : "grab",
+        width: WEBCAM_WIDTH,
+        height: WEBCAM_HEIGHT,
+        userSelect: "none",
+        touchAction: "none",
+      }}
+      onMouseDown={onMouseDown}
+    >
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        style={{ width: WEBCAM_WIDTH - 20, borderRadius: 8, pointerEvents: "none" }}
+      />
+    </animated.div>
   );
 };
 
