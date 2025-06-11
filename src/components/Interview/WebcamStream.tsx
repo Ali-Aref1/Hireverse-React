@@ -8,7 +8,7 @@ interface WebcamStreamProps {
 }
 
 const WEBCAM_WIDTH = 340;
-const WEBCAM_HEIGHT = 240; // Adjust if needed
+const WEBCAM_HEIGHT = 240;
 
 const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -116,14 +116,11 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
           console.log("[WebRTC] DataChannel is open, starting MediaRecorder");
           mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp8,opus" });
 
-          mediaRecorder.ondataavailable = async (event) => {
-            if (event.data.size > 0) {
-              if (dataChannel.readyState === "open") {
-                const arrayBuffer = await event.data.arrayBuffer();
-                dataChannel.send(arrayBuffer);
-              } else {
-                console.warn("[WebRTC] Tried to send chunk but DataChannel is not open. State:", dataChannel.readyState);
-              }
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              event.data.arrayBuffer().then(buffer => {
+                socket.emit("video_chunk", { userId, chunk: Array.from(new Uint8Array(buffer)) });
+              });
             }
           };
 
