@@ -7,6 +7,8 @@ import { PulseLoader } from 'react-spinners';
 import { UserContext } from '../App';
 import { io, Socket } from 'socket.io-client';
 import WebcamStream from '../components/Interview/WebcamStream';
+import { VoiceButton } from '../components/Interview/VoiceButton';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface Message {
   sender: string;
@@ -18,9 +20,31 @@ export const Interview = () => {
   const [loading, setLoading] = useState(true);
   const [showTyping, setShowTyping] = useState(true);
   const [socket, setSocket] = useState<Socket | null>(null); // Store socket in state
+  const [voiceText, setVoiceText] = useState<string>('');
   const navigate = useNavigate();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const userContext = useContext(UserContext);
+  const handleSend = async (message: string) => {
+    if(message.trim() === '') return; // Prevent sending empty messages
+    setLoading(true);
+      const newMessage: Message = { sender: 'You', message: message };
+      setChat((prevChat) => [...prevChat, newMessage]);
+      timeout = setTimeout(() => setShowTyping(true), 500); // Show typing indicator after 1 second
+      if (socket) {
+        socket.emit('message', newMessage.message); // Emit message to the server
+      }
+  };
+  const { startListening, stopListening, isListening } = useSpeechRecognition(voiceText, setVoiceText, handleSend);
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening(); // Stop listening if already listening
+      console.log('Stopped listening');
+    }
+    else {
+      startListening(); // Start listening if not already listening
+      console.log('Started listening');
+    }
+  }
   let timeout: ReturnType<typeof setTimeout> | null = null; // Declare timeout variable
   if (!userContext) {
     throw new Error('UserContext is not defined');
@@ -85,15 +109,7 @@ export const Interview = () => {
     scrollToBottom();
   }, [chat, showTyping]);
 
-  const handleSend = async (message: string) => {
-    setLoading(true);
-      const newMessage: Message = { sender: 'You', message: message };
-      setChat((prevChat) => [...prevChat, newMessage]);
-      timeout = setTimeout(() => setShowTyping(true), 500); // Show typing indicator after 1 second
-      if (socket) {
-        socket.emit('message', newMessage.message); // Emit message to the server
-      }
-  };
+
 
   return (
     <>
@@ -103,32 +119,40 @@ export const Interview = () => {
       </Link>
         {socket && <WebcamStream socket={socket} userId={user.id} />}
       <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
-        <div className="w-4/5 h-screen flex flex-col pb-10 pt-20 justify-between">
-          <div
-            className="w-full p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto h-4/5 flex flex-col gap-4"
-            ref={chatContainerRef}
-          >
+        <div className="w-4/5 h-screen flex flex-col pb-10 pt-20">
+          <div className="flex flex-col flex-1 gap-4 mb-4">
+            <div
+              className="w-full p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto flex flex-col gap-4 basis-[85.7143%]"
+              ref={chatContainerRef}
+            >
             {chat.map((message, index) => (
               <div key={index}>
-                <div
-                  className={`w-full px-4 py-2 rounded-lg ${
-                    message.sender === 'You' ? 'bg-white text-gray-900' : 'bg-slate-700 text-white'
-                  }`}
-                >
-                  <div className="text-sm font-bold">{message.sender}</div>
-                  <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
-                </div>
+              <div
+                className={`w-full px-4 py-2 rounded-lg ${
+                message.sender === 'You' ? 'bg-white text-gray-900' : 'bg-slate-700 text-white'
+                }`}
+              >
+                <div className="text-sm font-bold">{message.sender}</div>
+                <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
+              </div>
               </div>
             ))}
             {showTyping && (
               <div
-                className="bg-slate-700 text-white w-20 px-4 py-4 rounded-lg flex items-center justify-center animate-fade-in"
+              className="bg-slate-700 text-white w-20 px-4 py-4 rounded-lg flex items-center justify-center animate-fade-in"
               >
-                <PulseLoader size={7} color={'white'}></PulseLoader>
+              <PulseLoader size={7} color={'white'}></PulseLoader>
               </div>
             )}
+            </div>
+            <div className="w-full border border-gray-300 bg-slate-700 rounded basis-[14.2857%] flex items-center justify-center">
+              {voiceText}
+            </div>
           </div>
-          <MessageInput onSend={handleSend} loading={loading} />
+          <div className='w-full flex items-center justify-between gap-6'>
+          <MessageInput onSend={handleSend} loading={loading} isListening={isListening} />
+          <VoiceButton onClick={toggleListening} isListening={isListening} loading={loading}/>
+          </div>
         </div>
       </div>
     </>

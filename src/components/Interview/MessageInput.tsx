@@ -5,9 +5,10 @@ import MoonLoader from "react-spinners/MoonLoader";
 interface MessageInputProps {
   onSend: (message: string) => void;
   loading?: boolean;
+  isListening?: boolean;
 }
 
-export const MessageInput = ({ onSend, loading }: MessageInputProps) => {
+export const MessageInput = ({ onSend, loading, isListening }: MessageInputProps) => {
   const [input, setInput] = useState('');
 
   const handleSend = () => {
@@ -28,16 +29,16 @@ export const MessageInput = ({ onSend, loading }: MessageInputProps) => {
       <input
         type="text"
         className="bg-white text-black p-4 rounded-full w-full outline-none"
-        placeholder="Type your message here"
+        placeholder={"Type your message here"}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
       />
       
       <button
-        className={`bg-white rounded-full p-2 ${(input.trim() === '' || loading)? "opacity-50 cursor-not-allowed":"cursor-pointer"} w-12 h-12 flex items-center justify-center`}
+        className={`bg-white rounded-full p-2 ${(input.trim() === '' || loading || isListening)? "opacity-50 cursor-not-allowed":"cursor-pointer"} w-12 h-12 flex items-center justify-center`}
         onClick={handleSend}
-        disabled={input.trim() === '' || loading}
+        disabled={input.trim() === '' || loading || isListening}
       >
         {loading ? (
           <MoonLoader loading={true} size={25} color={"#022A46"}></MoonLoader>
