@@ -9,6 +9,7 @@ import { io, Socket } from 'socket.io-client';
 import WebcamStream from '../components/Interview/WebcamStream';
 import { VoiceButton } from '../components/Interview/VoiceButton';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { MdError } from 'react-icons/md';
 
 interface Message {
   sender: string;
@@ -24,6 +25,9 @@ export const Interview = () => {
   const navigate = useNavigate();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const userContext = useContext(UserContext);
+
+  const [error,setError]= useState<string | null>(null);
+
   const handleSend = async (message: string) => {
     if(message.trim() === '') return; // Prevent sending empty messages
     setLoading(true);
@@ -74,6 +78,11 @@ export const Interview = () => {
       setShowTyping(false);
     });
 
+    NodeSocket.on('error', (error:any) => {
+      console.error('Socket error:', error);
+      setError(error.message || 'An error occurred');
+    });
+
     return () => {
       // Only emit end_session if user is navigating away via UI (not on disconnect)
       NodeSocket.emit('end_session');
@@ -117,7 +126,20 @@ export const Interview = () => {
         <Arrow className="w-10 h-10" />
         Back
       </Link>
-        {socket && <WebcamStream socket={socket} userId={user.id} />}
+        {socket && !error && <WebcamStream socket={socket} userId={user.id} />}
+
+      {error!=null?
+      <div className="flex flex-col items-center justify-center gap-4 p-8 h-full">
+        <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
+        <span className="text-red-600 text-5xl">
+          <MdError />
+        </span>
+        <span className="text-lg font-semibold text-red-700">
+          {error}
+        </span>
+        </div>
+      </div>
+      :
       <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
         <div className="w-4/5 h-screen flex flex-col pb-10 pt-20">
           <div className="flex flex-col flex-1 gap-4 mb-4">
@@ -155,6 +177,7 @@ export const Interview = () => {
           </div>
         </div>
       </div>
+      }
     </>
   );
 };
