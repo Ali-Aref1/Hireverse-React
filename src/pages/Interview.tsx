@@ -142,7 +142,7 @@ export const Interview = () => {
       :
       <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
         <div className="w-4/5 h-screen flex flex-col pb-10 pt-20">
-          <div className="flex flex-col flex-1 gap-4 mb-4">
+          <div className="flex flex-col flex-1 gap-4 mb-4 h-[75vh] max-h-[75vh]">
             <div
               className="w-full p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto flex flex-col gap-4 basis-[85.7143%]"
               ref={chatContainerRef}
