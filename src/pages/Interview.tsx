@@ -17,6 +17,7 @@ interface Message {
   sender: string;
   message: string | { response: string };
   isCode?: boolean; // Optional property to indicate if the message is code
+  transition?: boolean; // Optional property to indicate if the message is a transition message
 }
 
 export const Interview = () => {
@@ -81,14 +82,20 @@ export const Interview = () => {
       }
       setChat((prevChat) => [...prevChat, newMessage]);
       if(timeout)clearTimeout(timeout); // Clear timeout for typing indicator
-      setLoading(false);
-      setShowTyping(false); // Hide typing indicator
+      if(!response.transition)
+      {
+        setLoading(false);
+        setShowTyping(false);
+      }
     });
 
     NodeSocket.on('message_history', (history: Message[]) => {
       setChat(history);
-      setLoading(false);
-      setShowTyping(false);
+      if(!chat[chat.length -1].transition)
+      {
+        setLoading(false);
+        setShowTyping(false);
+      }
     });
 
     NodeSocket.on('error', (error:any) => {
@@ -122,6 +129,7 @@ export const Interview = () => {
       setTimeout(() => {
         setShowChatBox(false);
         setTimeout(() => setShowEndFade(true), 500); // fade in after fade out
+        if (socket) socket.emit('end_session'); // Emit end session event to the server
       }, 5000);
     } else {
       setShowChatBox(true);
@@ -176,7 +184,7 @@ export const Interview = () => {
         <Arrow className="w-10 h-10" />
         Back
       </Link>
-        {socket && !error && <WebcamStream socket={socket} userId={user.id} />}
+        {(socket && !error && phase!="end")&& <WebcamStream socket={socket} userId={user.id} />}
       {error!=null?
       <div className="flex flex-col items-center justify-center gap-4 p-8 h-full">
         <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
