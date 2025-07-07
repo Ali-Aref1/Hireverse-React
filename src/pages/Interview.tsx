@@ -27,7 +27,6 @@ export const Interview = () => {
   const [voiceText, setVoiceText] = useState<string>('');
   const [phase, setPhase] = useState<"greeting"|"behavioural"|"technical"|"coding"|"end">("greeting"); 
   const [code, setCode] = useState<string>('');
-  const [showEnd,setShowEnd] = useState<boolean>(true);
   const [showChatBox, setShowChatBox] = useState(true);
   const [showEndFade, setShowEndFade] = useState(false);
   const navigate = useNavigate();
@@ -118,11 +117,12 @@ export const Interview = () => {
 
   // Fade out chat box and fade in complete message when phase is "end"
   useEffect(() => {
+    console.log('Phase changed:', phase);
     if (phase === "end") {
       setTimeout(() => {
         setShowChatBox(false);
         setTimeout(() => setShowEndFade(true), 500); // fade in after fade out
-      }, 3000);
+      }, 5000);
     } else {
       setShowChatBox(true);
       setShowEndFade(false);
@@ -262,7 +262,7 @@ export const Interview = () => {
           </div>
           <div className='w-full flex items-center justify-between gap-6'>
           <MessageInput onSend={handleSend} loading={loading} isListening={isListening} phase={phase} />
-          {phase!=="coding"&&<VoiceButton onClick={toggleListening} isListening={isListening} loading={loading}/>}
+          {(phase!=="coding"&&phase!=="end")&&<VoiceButton onClick={toggleListening} isListening={isListening} loading={loading}/>}
           </div>
         </div>
       </div>
