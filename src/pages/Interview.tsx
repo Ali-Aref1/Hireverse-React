@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { BsArrowLeftCircleFill as Arrow } from 'react-icons/bs';
 import { MessageInput } from '../components/Interview/MessageInput';
 import { Link, Navigate } from 'react-router-dom';
@@ -10,10 +10,13 @@ import WebcamStream from '../components/Interview/WebcamStream';
 import { VoiceButton } from '../components/Interview/VoiceButton';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { MdError } from 'react-icons/md';
+import { Editor } from '@monaco-editor/react';
+import { FaRegCheckCircle } from "react-icons/fa";
 
 interface Message {
   sender: string;
-  message: string;
+  message: string | { response: string };
+  isCode?: boolean; // Optional property to indicate if the message is code
 }
 
 export const Interview = () => {
@@ -22,6 +25,11 @@ export const Interview = () => {
   const [showTyping, setShowTyping] = useState(true);
   const [socket, setSocket] = useState<Socket | null>(null); // Store socket in state
   const [voiceText, setVoiceText] = useState<string>('');
+  const [phase, setPhase] = useState<"greeting"|"behavioural"|"technical"|"coding"|"end">("greeting"); 
+  const [code, setCode] = useState<string>('');
+  const [showEnd,setShowEnd] = useState<boolean>(true);
+  const [showChatBox, setShowChatBox] = useState(true);
+  const [showEndFade, setShowEndFade] = useState(false);
   const navigate = useNavigate();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const userContext = useContext(UserContext);
@@ -29,9 +37,12 @@ export const Interview = () => {
   const [error,setError]= useState<string | null>(null);
 
   const handleSend = async (message: string) => {
-    if(message.trim() === '') return; // Prevent sending empty messages
+    console.log('Sending message:', message);
+    if (message.trim() === '') {
+      return; // Prevent sending empty messages
+    }
     setLoading(true);
-      const newMessage: Message = { sender: 'You', message: message };
+      const newMessage: Message = { sender: 'You', message: message, isCode: phase === "coding" };
       setChat((prevChat) => [...prevChat, newMessage]);
       timeout = setTimeout(() => setShowTyping(true), 500); // Show typing indicator after 1 second
       if (socket) {
@@ -64,8 +75,11 @@ export const Interview = () => {
       NodeSocket.emit('attach_user', user); // Send the user data to the server to attach it to the socket id
     });
 
-    NodeSocket.on('ai_response', (response:string) => {
+    NodeSocket.on('ai_response', (response:any) => {
       const newMessage: Message = { sender: 'Interviewer', message: response };
+      if(response.phase!== phase) {
+        setPhase(response.phase as "greeting"|"behavioural"|"technical"|"coding"|"end");
+      }
       setChat((prevChat) => [...prevChat, newMessage]);
       if(timeout)clearTimeout(timeout); // Clear timeout for typing indicator
       setLoading(false);
@@ -84,12 +98,36 @@ export const Interview = () => {
     });
 
     return () => {
-      // Only emit end_session if user is navigating away via UI (not on disconnect)
-      NodeSocket.emit('end_session');
       NodeSocket.disconnect(); // Disconnect socket on cleanup
       setSocket(null); // Clear socket from state
     };
   }, [user]);
+
+  // Always keep phase in sync with the latest message
+  useEffect(() => {
+    if (chat.length > 0) {
+      const last = chat[chat.length - 1];
+      // If the message has a phase property, use it
+      if (typeof last.message === "object" && last.message !== null && "phase" in last.message) {
+        setPhase((last.message as any).phase);
+      } else if ((last as any).phase) {
+        setPhase((last as any).phase);
+      }
+    }
+  }, [chat]);
+
+  // Fade out chat box and fade in complete message when phase is "end"
+  useEffect(() => {
+    if (phase === "end") {
+      setTimeout(() => {
+        setShowChatBox(false);
+        setTimeout(() => setShowEndFade(true), 500); // fade in after fade out
+      }, 3000);
+    } else {
+      setShowChatBox(true);
+      setShowEndFade(false);
+    }
+  }, [phase]);
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -118,16 +156,27 @@ export const Interview = () => {
     scrollToBottom();
   }, [chat, showTyping]);
 
-
+  const handleBack = () => {
+    if (socket) {
+      socket.emit('end_session');
+    }
+    navigate('/');
+  };
 
   return (
     <>
-      <Link to="/" className="rounded-full m-4 absolute flex items-center gap-2 text-2xl font-bold antialiased">
+      <Link
+        to="/"
+        onClick={e => {
+          e.preventDefault();
+          handleBack();
+        }}
+        className="rounded-full m-4 absolute flex items-center gap-2 text-2xl font-bold antialiased"
+      >
         <Arrow className="w-10 h-10" />
         Back
       </Link>
         {socket && !error && <WebcamStream socket={socket} userId={user.id} />}
-
       {error!=null?
       <div className="flex flex-col items-center justify-center gap-4 p-8 h-full">
         <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
@@ -140,11 +189,24 @@ export const Interview = () => {
         </div>
       </div>
       :
-      <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased">
+      showEndFade?
+      <div className="flex flex-col items-center justify-center gap-4 p-8 h-full transition-opacity duration-700 opacity-100">
+        <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
+        <span className="text-green-600 text-5xl">
+          <FaRegCheckCircle />
+        </span>
+        <span className="text-lg font-semibold text-slate-500">
+          Your interview is complete! Please wait while we process your results.
+        </span>
+        </div>
+      </div>
+      :
+      <div className={`w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased transition-opacity duration-700 ${!showChatBox && "opacity-0 pointer-events-none"}`}>
         <div className="w-4/5 h-screen flex flex-col pb-10 pt-20">
-          <div className="flex flex-col flex-1 gap-4 mb-4 h-[75vh] max-h-[75vh]">
+          <div className={`flex flex-1 gap-4 mb-4 h-[75vh] max-h-[75vh] ${phase==="coding" ? "flex-row" : "flex-col"}`}>
             <div
-              className="w-full p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto flex flex-col gap-4 basis-[85.7143%]"
+              className={`p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto flex flex-col gap-4 transition-all duration-500
+                ${phase !== "coding" ? "basis-[85.7143%] w-full" : "basis-[66.6667%] w-2/3"}`}
               ref={chatContainerRef}
             >
             {chat.map((message, index) => (
@@ -155,7 +217,24 @@ export const Interview = () => {
                 }`}
               >
                 <div className="text-sm font-bold">{message.sender}</div>
-                <div>{typeof message.message === 'object' ? JSON.stringify(message.message) : message.message}</div>
+                <div>
+                  {(() => {
+                  if (message.isCode) {
+                    return <><span className="italic">[You sent a segment of code.] </span><span className='text-blue-600 underline cursor-pointer' onClick={()=>{setCode(String(message.message))}}>Copy to code editor</span></>;
+                  }
+                  if (typeof message.message === 'string') {
+                    return message.message;
+                  } else if (
+                    typeof message.message === 'object' &&
+                    message.message !== null &&
+                    'response' in message.message
+                  ) {
+                    return message.message.response;
+                  } else {
+                    return '';
+                  }
+                  })()}
+                </div>
               </div>
               </div>
             ))}
@@ -167,13 +246,23 @@ export const Interview = () => {
               </div>
             )}
             </div>
-            <div className="w-full border border-gray-300 bg-slate-700 rounded basis-[14.2857%] flex items-center justify-center">
-              {voiceText}
+            {phase=="coding"?
+            <div className="basis-[33.3333%] w-1/3 flex flex-col gap-2 items-center">
+                <Editor
+                height="100%"
+                theme="vs-dark"
+                value={code}
+                onChange={(value) => setCode(value ?? '')}
+                />
+              <button className={`bg-blue-500 text-xl font-bold p-2 rounded-lg w-full hover:bg-blue-600 transition-color duration-100 ${loading&&"opacity-50"}`} disabled={loading} onClick={()=>{if(!loading){handleSend(code);setCode("")}}}>Submit Code</button>
             </div>
+            :<div className="w-full border border-gray-300 bg-slate-700 rounded basis-[14.2857%] flex items-center justify-center">
+              {voiceText}
+            </div>}
           </div>
           <div className='w-full flex items-center justify-between gap-6'>
-          <MessageInput onSend={handleSend} loading={loading} isListening={isListening} />
-          <VoiceButton onClick={toggleListening} isListening={isListening} loading={loading}/>
+          <MessageInput onSend={handleSend} loading={loading} isListening={isListening} phase={phase} />
+          {phase!=="coding"&&<VoiceButton onClick={toggleListening} isListening={isListening} loading={loading}/>}
           </div>
         </div>
       </div>
