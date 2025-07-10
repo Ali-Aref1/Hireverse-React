@@ -68,8 +68,15 @@ export const Interview = () => {
   if (!user) return <Navigate to="/" />;
 
   useEffect(() => {
-    const NodeSocket = io('http://localhost:3000'); // Initialize socket
-    setSocket(NodeSocket); // Store socket in state
+    if (!user) return;
+
+    // Pass the access token in the auth option
+    const NodeSocket = io('http://localhost:3000', {
+      auth: {
+        token: user.accessToken
+      }
+    });
+    setSocket(NodeSocket);
 
     NodeSocket.on('connect', () => {
       NodeSocket.emit('attach_user', user); // Send the user data to the server to attach it to the socket id
@@ -80,7 +87,7 @@ export const Interview = () => {
       if(response.phase!== phase) {
         setPhase(response.phase as "greeting"|"behavioural"|"technical"|"coding"|"end");
       }
-      setChat((prevChat) => [...prevChat, newMessage]);
+      setChat((prevChat) => {console.log([...prevChat, newMessage]); return [...prevChat, newMessage]});
       if(timeout)clearTimeout(timeout); // Clear timeout for typing indicator
       if(!response.transition)
       {
@@ -91,7 +98,8 @@ export const Interview = () => {
 
     NodeSocket.on('message_history', (history: Message[]) => {
       setChat(history);
-      if(!chat[chat.length -1].transition)
+      console.log(history);
+      if(!history[history.length -1].transition)
       {
         setLoading(false);
         setShowTyping(false);
@@ -147,20 +155,6 @@ export const Interview = () => {
   };
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        navigate('/');
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [navigate]);
-
-  useEffect(() => {
     scrollToBottom();
   }, [chat, showTyping]);
 
@@ -206,6 +200,7 @@ export const Interview = () => {
         <span className="text-lg font-semibold text-slate-500">
           Your interview is complete! Please wait while we process your results.
         </span>
+        <Link to={`/interviews`}><button className='bg-blue-500 text-white rounded-full p-4'>Check Evaluation Status</button></Link>
         </div>
       </div>
       :

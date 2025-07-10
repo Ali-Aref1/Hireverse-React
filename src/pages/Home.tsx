@@ -17,6 +17,11 @@ export const Home = () => {
             Register
         </button>
         </Link>
+        <Link to="/interviews">
+        <button className="bg-white text-black p-4 rounded-full cursor-pointer ml-4">
+            Interviews
+        </button>
+        </Link>
     </div>
   )
 }

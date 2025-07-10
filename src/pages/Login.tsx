@@ -1,11 +1,12 @@
 import { useState, useContext } from 'react';
 import { UserContext } from '../App';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import { handleLogin } from '../utils/auth';
 
 export const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false); // NEW
     const userContext = useContext(UserContext);
     if(!userContext) {
         throw new Error('UserContext is not available');
@@ -17,19 +18,7 @@ export const Login = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('Email:', email);
-        console.log('Password:', password);
-        axios.post('http://localhost:3000/login', { email, password })
-            .then((response) => {
-                console.log('Login successful:', response.data);
-                setUser(response.data);
-                
-            })
-            .catch((error) => {
-                window.alert(`Error code ${error.status} - ${error.response.statusText}: ${error.response.data}`);
-            }
-        );
-        
+        handleLogin(email, password, setUser, rememberMe);
     };
 
 
@@ -56,6 +45,15 @@ export const Login = () => {
                     required
                     className="mb-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <label className="mb-4 flex items-center">
+                    <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={e => setRememberMe(e.target.checked)}
+                        className="mr-2"
+                    />
+                    Remember Me
+                </label>
                 <button
                     type="submit"
                     className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"

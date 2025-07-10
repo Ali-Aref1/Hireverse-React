@@ -2,7 +2,7 @@ import React from 'react'
 import { useState, useContext } from 'react';
 import { UserContext } from '../App';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import { handleRegister } from '../utils/auth';
 
 export const Register = () => {
     const [Fname, setFname] = useState('');
@@ -20,26 +20,7 @@ export const Register = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        axios.post('http://localhost:3000/register', { Fname, Lname, email, password })
-            .then((response) => {
-                console.log('registered successfully:', response.data);
-                axios.post('http://localhost:3000/login', { email, password })
-                .then((response) => {
-                    console.log('Login successful:', response.data);
-                    setUser(response.data);
-                    
-                })
-                .catch((error) => {
-                    window.alert(`Error code ${error.status} - ${error.response.statusText}: ${error.response.data}`);
-                }
-        );
-                
-            })
-            .catch((error) => {
-                window.alert(`Error code ${error.status} - ${error.response.statusText}: ${error.response.data}`);
-            }
-        );
-        
+        handleRegister(Fname, Lname, email, password, setUser);
     };
   return (
     <div className="flex justify-center items-center h-screen text-black">
