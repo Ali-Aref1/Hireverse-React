@@ -7,6 +7,7 @@ import { createContext, useEffect, useState } from 'react';
 import { refreshToken, getUserInfo } from './utils/auth';
 import { jwtDecode } from 'jwt-decode';
 import { Register } from './pages/Register';
+import { PixelStreamingWrapper } from './components/Interview/PixelStreamingWrapper';
 
 interface UserData {
   id: string;
@@ -98,6 +99,24 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/interview" element={<Interview />} />
             <Route path="/interviews" element={<ResultsDashboard />} />
+            <Route path ="/avatartest" element={<div
+            style={{
+                height: '100%',
+                width: '100%'
+            }}
+        >
+            <PixelStreamingWrapper
+                initialSettings={{
+                    AutoPlayVideo: true,
+                    AutoConnect: true,
+                    ss: 'ws://localhost:80',
+                    StartVideoMuted: false,
+                    HoveringMouse: true,
+                    WaitForStreamer: true,
+                    StreamerId: 'DefaultStreamer'
+                }}
+            />
+        </div>}/>
           </Routes>
         </Router>
       </div>

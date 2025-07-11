@@ -1,9 +1,7 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext} from 'react';
 import { BsArrowLeftCircleFill as Arrow } from 'react-icons/bs';
-import { MessageInput } from '../components/Interview/MessageInput';
 import { Link, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
-import { PulseLoader } from 'react-spinners';
 import { UserContext } from '../App';
 import { io, Socket } from 'socket.io-client';
 import WebcamStream from '../components/Interview/WebcamStream';
@@ -12,13 +10,11 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { MdError } from 'react-icons/md';
 import { Editor } from '@monaco-editor/react';
 import { FaRegCheckCircle } from "react-icons/fa";
+import { PixelStreamingWrapper } from '../components/Interview/PixelStreamingWrapper';
+import { Message } from '../interfaces/Interview'; // Import the Message interface
+import { ChatBox } from '../components/ChatBox';
 
-interface Message {
-  sender: string;
-  message: string | { response: string };
-  isCode?: boolean; // Optional property to indicate if the message is code
-  transition?: boolean; // Optional property to indicate if the message is a transition message
-}
+
 
 export const Interview = () => {
   const [chat, setChat] = useState<Message[]>([]);
@@ -30,8 +26,9 @@ export const Interview = () => {
   const [code, setCode] = useState<string>('');
   const [showChatBox, setShowChatBox] = useState(true);
   const [showEndFade, setShowEndFade] = useState(false);
+  const [interviewerSpeaking, setInterviewerSpeaking] = useState(false); // State to track if the interviewer is speaking
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null); // Track current audio element
   const navigate = useNavigate();
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const userContext = useContext(UserContext);
 
   const [error,setError]= useState<string | null>(null);
@@ -82,17 +79,50 @@ export const Interview = () => {
       NodeSocket.emit('attach_user', user); // Send the user data to the server to attach it to the socket id
     });
 
-    NodeSocket.on('ai_response', (response:any) => {
+    NodeSocket.on('ai_response', (response) => {
+      if (response.audio) {
+        // Stop any currently playing audio
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+        }
+        
+        const audioBlob = new Blob(
+          [Uint8Array.from(atob(response.audio), c => c.charCodeAt(0))],
+          { type: 'audio/wav' }
+        );
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        // Track the current audio
+        setCurrentAudio(audio);
+        setInterviewerSpeaking(true);
+        
+        audio.play();
+        audio.onended = () => {
+          setInterviewerSpeaking(false);
+          setCurrentAudio(null);
+          URL.revokeObjectURL(audioUrl); // Clean up the object URL
+          startListening(); // Allow user to speak
+        };
+        
+        // Clean up if audio fails to play
+        audio.onerror = () => {
+          setInterviewerSpeaking(false);
+          setCurrentAudio(null);
+          URL.revokeObjectURL(audioUrl);
+        };
+      }
       const newMessage: Message = { sender: 'Interviewer', message: response };
       if(response.phase!== phase) {
-        setPhase(response.phase as "greeting"|"behavioural"|"technical"|"coding"|"end");
+      setPhase(response.phase as "greeting"|"behavioural"|"technical"|"coding"|"end");
       }
       setChat((prevChat) => {console.log([...prevChat, newMessage]); return [...prevChat, newMessage]});
       if(timeout)clearTimeout(timeout); // Clear timeout for typing indicator
       if(!response.transition)
       {
-        setLoading(false);
-        setShowTyping(false);
+      setLoading(false);
+      setShowTyping(false);
       }
     });
 
@@ -112,10 +142,15 @@ export const Interview = () => {
     });
 
     return () => {
+      // Stop any currently playing audio
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
       NodeSocket.disconnect(); // Disconnect socket on cleanup
       setSocket(null); // Clear socket from state
     };
-  }, [user]);
+  }, [user, currentAudio]);
 
   // Always keep phase in sync with the latest message
   useEffect(() => {
@@ -139,26 +174,24 @@ export const Interview = () => {
         setTimeout(() => setShowEndFade(true), 500); // fade in after fade out
         if (socket) socket.emit('end_session'); // Emit end session event to the server
       }, 5000);
-    } else {
+    }
+    else if (phase === "coding") {
+      setShowChatBox(false);
+    }
+    else {
       setShowChatBox(true);
       setShowEndFade(false);
     }
   }, [phase]);
 
-  const scrollToBottom = () => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [chat, showTyping]);
 
   const handleBack = () => {
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
     if (socket) {
       socket.emit('end_session');
     }
@@ -173,103 +206,97 @@ export const Interview = () => {
           e.preventDefault();
           handleBack();
         }}
-        className="rounded-full m-4 absolute flex items-center gap-2 text-2xl font-bold antialiased"
+        className="rounded-full m-4 absolute flex items-center gap-2 text-2xl font-bold antialiased z-20"
       >
         <Arrow className="w-10 h-10" />
         Back
       </Link>
-        {(socket && !error && phase!="end")&& <WebcamStream socket={socket} userId={user.id} />}
-      {error!=null?
-      <div className="flex flex-col items-center justify-center gap-4 p-8 h-full">
-        <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
-        <span className="text-red-600 text-5xl">
-          <MdError />
-        </span>
-        <span className="text-lg font-semibold text-red-700">
-          {error}
-        </span>
+      {(socket && !error && phase != "end") && <WebcamStream socket={socket} userId={user.id} />}
+      {error != null ? (
+        <div className="flex flex-col items-center justify-center gap-4 p-8 h-full">
+          <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
+            <span className="text-red-600 text-5xl">
+              <MdError />
+            </span>
+            <span className="text-lg font-semibold text-red-700">
+              {error}
+            </span>
+          </div>
         </div>
-      </div>
-      :
-      showEndFade?
-      <div className="flex flex-col items-center justify-center gap-4 p-8 h-full transition-opacity duration-700 opacity-100">
-        <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
-        <span className="text-green-600 text-5xl">
-          <FaRegCheckCircle />
-        </span>
-        <span className="text-lg font-semibold text-slate-500">
-          Your interview is complete! Please wait while we process your results.
-        </span>
-        <Link to={`/interviews`}><button className='bg-blue-500 text-white rounded-full p-4'>Check Evaluation Status</button></Link>
+      ) : showEndFade ? (
+        <div className="flex flex-col items-center justify-center gap-4 p-8 h-full transition-opacity duration-700 opacity-100">
+          <div className='flex flex-col items-center justify-center gap-2 w-1/2 h-1/2 bg-white border border-red-300 rounded-lg shadow-lg p-6'>
+            <span className="text-green-600 text-5xl">
+              <FaRegCheckCircle />
+            </span>
+            <span className="text-lg font-semibold text-slate-500">
+              Your interview is complete! Please wait while we process your results.
+            </span>
+            <Link to={`/interviews`}><button className='bg-blue-500 text-white rounded-full p-4'>Check Evaluation Status</button></Link>
+          </div>
         </div>
-      </div>
-      :
-      <div className={`w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased transition-opacity duration-700 ${!showChatBox && "opacity-0 pointer-events-none"}`}>
-        <div className="w-4/5 h-screen flex flex-col pb-10 pt-20">
-          <div className={`flex flex-1 gap-4 mb-4 h-[75vh] max-h-[75vh] ${phase==="coding" ? "flex-row" : "flex-col"}`}>
-            <div
-              className={`p-4 border border-gray-300 rounded bg-slate-500 overflow-y-auto flex flex-col gap-4 transition-all duration-500
-                ${phase !== "coding" ? "basis-[85.7143%] w-full" : "basis-[66.6667%] w-2/3"}`}
-              ref={chatContainerRef}
-            >
-            {chat.map((message, index) => (
-              <div key={index}>
-              <div
-                className={`w-full px-4 py-2 rounded-lg ${
-                message.sender === 'You' ? 'bg-white text-gray-900' : 'bg-slate-700 text-white'
-                }`}
-              >
-                <div className="text-sm font-bold">{message.sender}</div>
-                <div>
-                  {(() => {
-                  if (message.isCode) {
-                    return <><span className="italic">[You sent a segment of code.] </span><span className='text-blue-600 underline cursor-pointer' onClick={()=>{setCode(String(message.message))}}>Copy to code editor</span></>;
-                  }
-                  if (typeof message.message === 'string') {
-                    return message.message;
-                  } else if (
-                    typeof message.message === 'object' &&
-                    message.message !== null &&
-                    'response' in message.message
-                  ) {
-                    return message.message.response;
-                  } else {
-                    return '';
-                  }
-                  })()}
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased transition-opacity duration-700 relative px-10">
+          <div className="w-full h-screen flex flex-col pb-10 pt-20 justify-center">
+            <div className='flex h-fit items-center'>
+              <div className="flex flex-row w-full h-[75vh] max-h-[75vh]">
+                {/* PixelStreamingWrapper takes up 2/3 of the flex space */}
+                <div className="h-full flex items-center flex-[2_2_0%] min-w-0" style={{ aspectRatio: '16/9' }}>
+                  <PixelStreamingWrapper
+                    initialSettings={{
+                      AutoPlayVideo: true,
+                      AutoConnect: true,
+                      ss: 'ws://localhost:80',
+                      StartVideoMuted: true,
+                      HoveringMouse: true,
+                      WaitForStreamer: true,
+                      StreamerId: 'DefaultStreamer'
+                    }}
+                  />
+                </div>
+                {/* Right column takes up 1/3 of the flex space */}
+                <div className="flex flex-col h-full flex-[1_1_0%] min-w-0">
+                  <ChatBox
+                    chat={chat}
+                    setCode={setCode}
+                    showTyping={showTyping}
+                    phase={phase}
+                  />
+                  {phase === "coding" && (
+                    <div style={{ height: "50%" }} className="flex flex-col">
+                      <Editor
+                        height="100%"
+                        width="100%"
+                        language="javascript"
+                        value={code}
+                        onChange={(value) => setCode(value || '')}
+                        theme="vs-dark"
+                        options={{
+                          minimap: { enabled: false },
+                          scrollBeyondLastLine: false,
+                          automaticLayout: true,
+                          readOnly: true
+                        }}
+                      />
+                      <button className='text-xl bg-blue-500 rounded-full h-24'>Submit Code</button>
+                    </div>
+                  )}
                 </div>
               </div>
-              </div>
-            ))}
-            {showTyping && (
-              <div
-              className="bg-slate-700 text-white w-20 px-4 py-4 rounded-lg flex items-center justify-center animate-fade-in"
-              >
-              <PulseLoader size={7} color={'white'}></PulseLoader>
-              </div>
-            )}
             </div>
-            {phase=="coding"?
-            <div className="basis-[33.3333%] w-1/3 flex flex-col gap-2 items-center">
-                <Editor
-                height="100%"
-                theme="vs-dark"
-                value={code}
-                onChange={(value) => setCode(value ?? '')}
-                />
-              <button className={`bg-blue-500 text-xl font-bold p-2 rounded-lg w-full hover:bg-blue-600 transition-color duration-100 ${loading&&"opacity-50"}`} disabled={loading} onClick={()=>{if(!loading){handleSend(code);setCode("")}}}>Submit Code</button>
-            </div>
-            :<div className="w-full border border-gray-300 bg-slate-700 rounded basis-[14.2857%] flex items-center justify-center">
-              {voiceText}
-            </div>}
           </div>
-          <div className='w-full flex items-center justify-between gap-6'>
-          <MessageInput onSend={handleSend} loading={loading} isListening={isListening} phase={phase} />
-          {(phase!=="coding"&&phase!=="end")&&<VoiceButton onClick={toggleListening} isListening={isListening} loading={loading}/>}
-          </div>
+          {/* VoiceButton fixed at the bottom */}
+          {showChatBox && (
+              <VoiceButton
+                onClick={toggleListening}
+                className="w-16 h-16 mb-10"
+                isListening={isListening}
+                loading={loading}
+                interviewerSpeaking={interviewerSpeaking} 
+              />
+          )}
         </div>
-      </div>
-      }
+      )}
     </>
   );
 };

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Socket } from "socket.io-client";
-import { useSpring, animated } from "@react-spring/web";
 
 interface WebcamStreamProps {
   socket: Socket;
@@ -19,19 +18,47 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
   // Drag state
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
+  
+  // Get position from localStorage or use default (bottom left)
+  const getInitialPosition = () => {
+    try {
+      const saved = localStorage.getItem('webcam-position');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Validate the saved position is still within bounds
+        const maxX = window.innerWidth - WEBCAM_WIDTH;
+        const maxY = window.innerHeight - WEBCAM_HEIGHT;
+        if (parsed.x >= 0 && parsed.x <= maxX && parsed.y >= 0 && parsed.y <= maxY) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      // If localStorage fails, fall back to default
+    }
+    
+    // Default position: bottom left
+    return {
+      x: 24,
+      y: window.innerHeight - WEBCAM_HEIGHT - 24,
+    };
+  };
+  
+  const initialPosition = getInitialPosition();
+  
+  // Track actual position using ref - this is our single source of truth
+  const position = useRef(initialPosition);
 
-  // Committed position state
-  const [committedPos, setCommittedPos] = useState({
-    x: window.innerWidth - WEBCAM_WIDTH - 24,
-    y: 24,
-  });
+  // Position state for triggering rerenders only when needed
+  const [cssPosition, setCssPosition] = useState(initialPosition);
 
-  // Spring for position
-  const [{ x, y }, api] = useSpring(() => ({
-    x: window.innerWidth - WEBCAM_WIDTH - 24,
-    y: 24,
-    config: { tension: 300, friction: 30 },
-  }));
+  // Save position to localStorage
+  const savePosition = (pos: { x: number; y: number }) => {
+    try {
+      localStorage.setItem('webcam-position', JSON.stringify(pos));
+    } catch (e) {
+      // localStorage might be disabled, fail silently
+    }
+  };
 
   // Helper to get bounds
   const getBoundedPosition = (clientX: number, clientY: number) => {
@@ -48,17 +75,13 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
 
   // Drag handlers
   const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Get the current animated position
-    const currentX = x.get();
-    const currentY = y.get();
-    // Commit the spring to the current position before starting drag
-    api.start({ x: currentX, y: currentY, immediate: true });
-    setCommittedPos({ x: currentX, y: currentY });
+    // Use the position ref as single source of truth
+    const currentPos = position.current;
     setDragging(true);
     // Use the current position for drag offset
     dragOffset.current = {
-      x: e.clientX - currentX,
-      y: e.clientY - currentY,
+      x: e.clientX - currentPos.x,
+      y: e.clientY - currentPos.y,
     };
     document.body.style.userSelect = "none";
   };
@@ -67,15 +90,17 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
     const onMouseMove = (e: MouseEvent) => {
       if (dragging) {
         const bounded = getBoundedPosition(e.clientX, e.clientY);
-        api.start({ x: bounded.x, y: bounded.y });
+        position.current = bounded;
+        setCssPosition(bounded);
       }
     };
     const onMouseUp = (e: MouseEvent) => {
       setDragging(false);
       document.body.style.userSelect = "";
       const bounded = getBoundedPosition(e.clientX, e.clientY);
-      setCommittedPos(bounded); // <-- Save the last position
-      api.start({ x: bounded.x, y: bounded.y });
+      position.current = bounded;
+      setCssPosition(bounded);
+      savePosition(bounded); // Save position when drag ends
     };
     if (dragging) {
       window.addEventListener("mousemove", onMouseMove);
@@ -86,12 +111,33 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
       window.removeEventListener("mouseup", onMouseUp);
       document.body.style.userSelect = "";
     };
-  }, [dragging, api]);
+  }, [dragging]);
 
-  // Keep the spring in sync with committedPos (e.g. on mount)
+  // Handle window resize to keep webcam in bounds
   useEffect(() => {
-    api.start({ x: committedPos.x, y: committedPos.y });
-  }, [committedPos, api]);
+    const handleResize = () => {
+      const currentPos = position.current;
+      const maxX = window.innerWidth - WEBCAM_WIDTH;
+      const maxY = window.innerHeight - WEBCAM_HEIGHT;
+      
+      // Check if current position is out of bounds
+      if (currentPos.x > maxX || currentPos.y > maxY) {
+        const newX = Math.max(0, Math.min(currentPos.x, maxX));
+        const newY = Math.max(0, Math.min(currentPos.y, maxY));
+        const newPos = { x: newX, y: newY };
+        
+        // Update position and trigger rerender
+        position.current = newPos;
+        setCssPosition(newPos);
+        savePosition(newPos); // Save adjusted position
+        
+        console.log("[WebcamStream] Position adjusted due to resize:", newPos);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -198,17 +244,18 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
   }, [socket, userId]);
 
   return (
-    <animated.div
+    <div
       style={{
         position: "absolute",
-        left: x,
-        top: y,
+        left: cssPosition.x,
+        top: cssPosition.y,
         zIndex: 10,
         cursor: dragging ? "grabbing" : "grab",
         width: WEBCAM_WIDTH,
         height: WEBCAM_HEIGHT,
         userSelect: "none",
         touchAction: "none",
+        transition: dragging ? "none" : "all 0.2s ease-out", // Smooth transitions when not dragging
       }}
       onMouseDown={onMouseDown}
     >
@@ -218,7 +265,7 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
         muted
         style={{ width: WEBCAM_WIDTH - 20, borderRadius: 8, pointerEvents: "none" }}
       />
-    </animated.div>
+    </div>
   );
 };
 

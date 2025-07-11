@@ -35,3 +35,12 @@ export interface Interview {
         };
     };
 }
+export interface Message {
+  sender: string;
+  message: string | { response: string };
+  eval?: any; // Optional property for evaluation data
+  phase?: string; // Optional property to indicate the phase of the interview
+  audio?: Blob; // Optional property for audio data
+  isCode?: boolean; // Optional property to indicate if the message is code
+  transition?: boolean; // Optional property to indicate if the message is a transition message
+}
