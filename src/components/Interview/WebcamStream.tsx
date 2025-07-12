@@ -7,8 +7,8 @@ interface WebcamStreamProps {
   connectionQuality?: 'good' | 'poor' | 'disconnected';
 }
 
-const WEBCAM_WIDTH = 340;
-const WEBCAM_HEIGHT = 240;
+const WEBCAM_WIDTH = 240;
+const WEBCAM_HEIGHT = 190;
 
 const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId, connectionQuality = 'good' }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -151,20 +151,45 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId, connectionQ
       if (isProcessingQueue || chunkQueue.length === 0) return;
       isProcessingQueue = true;
 
-      while (chunkQueue.length > 0) {
-        const chunk = chunkQueue.shift();
-        if (chunk && chunk.size > 0) {
-          try {
-            const buffer = await chunk.arrayBuffer();
-            socket.emit("video_chunk", { userId, chunk: Array.from(new Uint8Array(buffer)) });
-          } catch (err) {
-            console.error("[WebRTC] Error processing chunk:", err);
+      try {
+        // Process chunks in smaller batches to maintain order
+        const batchSize = Math.min(3, chunkQueue.length);
+        const batch = chunkQueue.splice(0, batchSize);
+        
+        for (const chunk of batch) {
+          if (chunk && chunk.size > 0) {
+            try {
+              const buffer = await chunk.arrayBuffer();
+              
+              // Validate buffer is not corrupted
+              if (buffer.byteLength === 0) {
+                console.warn("[WebRTC] Skipping empty buffer");
+                continue;
+              }
+              
+              socket.emit("video_chunk", { 
+                userId, 
+                chunk: Array.from(new Uint8Array(buffer)),
+                timestamp: Date.now() // Add timestamp for ordering
+              });
+              
+              // Small delay to prevent overwhelming the socket and maintain order
+              await new Promise(resolve => setTimeout(resolve, 5));
+            } catch (err) {
+              console.error("[WebRTC] Error processing chunk:", err);
+            }
           }
         }
-        // Small delay to prevent overwhelming the socket
-        await new Promise(resolve => setTimeout(resolve, 10));
+      } catch (error) {
+        console.error("[WebRTC] Error in chunk processing:", error);
+      } finally {
+        isProcessingQueue = false;
+        
+        // Continue processing if there are more chunks
+        if (chunkQueue.length > 0) {
+          setTimeout(processChunkQueue, 10);
+        }
       }
-      isProcessingQueue = false;
     };
 
     const startWebcamAndStream = async () => {
@@ -266,9 +291,10 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId, connectionQ
 
         dataChannel.onopen = () => {
           console.log("[WebRTC] DataChannel is open, starting MediaRecorder");
-          // Use adaptive quality settings for recording
+          
+          // Use more stable recording settings
           const options = {
-            mimeType: "video/webm; codecs=vp8,opus",
+            mimeType: "video/webm; codecs=vp9,opus", // Use VP9 + Opus for better quality
             videoBitsPerSecond: bitrateSettings.recording.videoBitsPerSecond,
             audioBitsPerSecond: bitrateSettings.recording.audioBitsPerSecond
           };
@@ -276,19 +302,48 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId, connectionQ
           try {
             mediaRecorder = new MediaRecorder(stream, options);
           } catch (err) {
-            // Fallback to default settings if custom options fail
-            console.warn("[WebRTC] Custom MediaRecorder options failed, using defaults:", err);
-            mediaRecorder = new MediaRecorder(stream);
+            // Fallback to VP8 if VP9 is not supported
+            console.warn("[WebRTC] VP9 not supported, falling back to VP8:", err);
+            try {
+              const fallbackOptions = {
+                mimeType: "video/webm; codecs=vp8,opus",
+                videoBitsPerSecond: bitrateSettings.recording.videoBitsPerSecond,
+                audioBitsPerSecond: bitrateSettings.recording.audioBitsPerSecond
+              };
+              mediaRecorder = new MediaRecorder(stream, fallbackOptions);
+            } catch (fallbackErr) {
+              // Final fallback to default settings
+              console.warn("[WebRTC] Custom options failed, using defaults:", fallbackErr);
+              mediaRecorder = new MediaRecorder(stream);
+            }
           }
 
           mediaRecorder.ondataavailable = (event) => {
             if (event.data && event.data.size > 0) {
+              // Validate chunk before adding to queue
+              if (event.data.size < 10) {
+                console.warn("[WebRTC] Skipping very small chunk:", event.data.size);
+                return;
+              }
               chunkQueue.push(event.data);
               processChunkQueue();
             }
           };
 
+          mediaRecorder.onerror = (event) => {
+            console.error("[WebRTC] MediaRecorder error:", event);
+          };
+
+          mediaRecorder.onstart = () => {
+            console.log("[WebRTC] MediaRecorder started");
+          };
+
+          mediaRecorder.onstop = () => {
+            console.log("[WebRTC] MediaRecorder stopped");
+          };
+
           // Use adaptive chunk interval based on connection quality
+          console.log(`[WebRTC] Starting recording with ${bitrateSettings.chunkInterval}ms intervals`);
           mediaRecorder.start(bitrateSettings.chunkInterval);
         };
 
@@ -387,7 +442,7 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId, connectionQ
         ref={videoRef}
         autoPlay
         muted
-        style={{ width: WEBCAM_WIDTH - 20, borderRadius: 8, pointerEvents: "none" }}
+        style={{ width: WEBCAM_WIDTH - 16, height: WEBCAM_HEIGHT - 16, borderRadius: 8, pointerEvents: "none" }}
       />
     </div>
   );

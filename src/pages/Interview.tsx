@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext} from 'react';
-import { BsArrowLeftCircleFill as Arrow } from 'react-icons/bs';
+import { MdCancel as Cancel } from 'react-icons/md';
 import { Link, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../App';
@@ -33,6 +33,8 @@ export const Interview = () => {
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const navigate = useNavigate();
   const userContext = useContext(UserContext);
+
+  const DEBUG_MODE = true;
 
   const [error,setError]= useState<string | null>(null);
 
@@ -298,29 +300,7 @@ export const Interview = () => {
 
   return (
     <>
-      {/* Connection Status Indicator */}
-      {socket && (
-        <div className={`fixed top-4 right-4 z-30 px-3 py-2 rounded-full text-sm font-medium shadow-lg transition-all duration-300 ${
-          connectionQuality === 'good' 
-            ? 'bg-green-100 text-green-800 border border-green-200' 
-            : connectionQuality === 'poor'
-            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-            : 'bg-red-100 text-red-800 border border-red-200'
-        }`}>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${
-              connectionQuality === 'good' 
-                ? 'bg-green-500' 
-                : connectionQuality === 'poor'
-                ? 'bg-yellow-500 animate-pulse'
-                : 'bg-red-500 animate-pulse'
-            }`}></div>
-            {connectionQuality === 'good' && 'Connected'}
-            {connectionQuality === 'poor' && 'Poor Connection'}
-            {connectionQuality === 'disconnected' && 'Reconnecting...'}
-          </div>
-        </div>
-      )}
+
       
       <Link
         to="/"
@@ -328,10 +308,10 @@ export const Interview = () => {
           e.preventDefault();
           handleBack();
         }}
-        className="rounded-full m-4 absolute flex items-center gap-2 text-2xl font-bold antialiased z-20"
+        className="rounded-full m-4 absolute flex items-center gap-2 text-lg font-bold antialiased z-20 bg-slate-500 p-2"
       >
-        <Arrow className="w-10 h-10" />
-        Back
+        <Cancel className="w-10 h-10" />
+        Cancel Interview
       </Link>
       {(socket && !error && phase != "end") && <WebcamStream socket={socket} userId={user.id} connectionQuality={connectionQuality} />}
       {error != null ? (
@@ -358,10 +338,11 @@ export const Interview = () => {
           </div>
         </div>
       ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center text-sm subpixel-antialiased transition-opacity duration-700 relative px-10">
-          <div className="w-full h-screen flex flex-col pb-10 pt-20 justify-center">
-            <div className='flex h-fit items-center'>
-              <div className="flex flex-row w-full h-[75vh] max-h-[75vh]">
+        <div className="w-full h-full flex flex-col text-sm subpixel-antialiased transition-opacity duration-700 relative px-10 overflow-hidden">
+          {/* Main content area - takes up available space but leaves room for voice button */}
+          <div className="flex-1 flex flex-col pt-20 pb-24 justify-center min-h-0">
+            <div className='flex h-fit items-center justify-center'>
+              <div className="flex flex-row w-[90%] h-[70vh] max-h-[70vh] mb-6">
                 {/* PixelStreamingWrapper takes up 2/3 of the flex space */}
                 <div className="h-full flex items-center flex-[2_2_0%] min-w-0" style={{ aspectRatio: '16/9' }}>
                   <PixelStreamingWrapper
@@ -407,15 +388,51 @@ export const Interview = () => {
               </div>
             </div>
           </div>
-          {/* VoiceButton fixed at the bottom */}
+          
+          {/* VoiceButton - fixed at the bottom with proper positioning */}
           {showChatBox && (
-              <VoiceButton
-                onClick={toggleListening}
-                className="w-16 h-16 mb-10"
-                isListening={isListening}
-                loading={loading}
-                interviewerSpeaking={interviewerSpeaking} 
-              />
+            <div className="fixed bottom-0 left-0 right-0 flex justify-center items-center pb-6 pointer-events-none z-20">
+              <div className="pointer-events-auto flex w-full mx-40 gap-4">
+                {DEBUG_MODE &&
+                <MessageInput
+                  onSend={handleSend}
+                  isListening={isListening}
+                  loading={loading}
+                  phase={phase}
+                  />
+                }
+                <VoiceButton
+                  onClick={toggleListening}
+                  className="w-16 h-16"
+                  isListening={isListening}
+                  loading={loading}
+                  interviewerSpeaking={interviewerSpeaking} 
+                />
+              </div>
+                    {/* Connection Status Indicator */}
+          {socket && (
+            <div className={`fixed bottom-4 right-4 z-30 px-3 py-2 rounded-full text-sm font-medium shadow-lg transition-all duration-300 ${
+              connectionQuality === 'good' 
+                ? 'bg-green-100 text-green-800 border border-green-200' 
+                : connectionQuality === 'poor'
+                ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                : 'bg-red-100 text-red-800 border border-red-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  connectionQuality === 'good' 
+                    ? 'bg-green-500' 
+                    : connectionQuality === 'poor'
+                    ? 'bg-yellow-500 animate-pulse'
+                    : 'bg-red-500 animate-pulse'
+                }`}></div>
+                {connectionQuality === 'good' && 'Connected'}
+                {connectionQuality === 'poor' && 'Poor Connection'}
+                {connectionQuality === 'disconnected' && 'Reconnecting...'}
+              </div>
+            </div>
+          )}
+            </div>
           )}
         </div>
       )}
