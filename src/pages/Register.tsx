@@ -1,19 +1,17 @@
 import React from 'react'
 import { useState, useContext } from 'react';
 import { UserContext } from '../App';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { handleRegister } from '../utils/auth';
+import Logo from '../assets/logo.png';
+import { HireverseTitle } from '../components/common/HireverseTitle';
 
 export const Register = () => {
     const [Fname, setFname] = useState('');
     const [Lname, setLname] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const userContext = useContext(UserContext);
-    if(!userContext) {
-        throw new Error('UserContext is not available');
-    }
-    const { user, setUser } = userContext;
+    const {user,setUser} = useContext(UserContext);
 
     if(user) return <Navigate to="/" />;
 
@@ -23,52 +21,138 @@ export const Register = () => {
         handleRegister(Fname, Lname, email, password, setUser);
     };
   return (
-    <div className="flex justify-center items-center h-screen text-black">
-    <form onSubmit={handleSubmit} className="flex flex-col w-80 bg-white p-6 shadow-md rounded">
-        <h2 className="text-2xl font-bold mb-4 text-center">Register</h2>
-        <label htmlFor="Fname" className="mb-2 font-medium">First Name</label>
-        <input
-            type="text"
-            id="Fname"
-            value={Fname}
-            onChange={(e) => setFname(e.target.value)}
-            required
-            className="mb-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <label htmlFor="Lname" className="mb-2 font-medium">Last Name</label>
-        <input
-            type="text"
-            id="Lname"
-            value={Lname}
-            onChange={(e) => setLname(e.target.value)}
-            required
-            className="mb-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <label htmlFor="email" className="mb-2 font-medium">Email</label>
-        <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="mb-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <label htmlFor="password" className="mb-2 font-medium">Password</label>
-        <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="mb-4 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-            type="submit"
-            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-            Register
-        </button>
-    </form>
-</div>
-  )
+    <div 
+        className="flex flex-col items-center justify-start py-8"
+    >
+        {/* Logo */}
+        <img src={Logo} alt="Logo" className="w-25 mb-0" style={{ width: '100px' }} />
+        
+        {/* Brand Name */}
+        <HireverseTitle size={24} className='mb-4'/>
+
+        {/* Auth Container */}
+        <div className="bg-white rounded-3xl shadow-xl w-full max-w-md flex flex-col items-center" 
+             style={{ 
+                 backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                 padding: '10px 40px',
+                 boxShadow: '0 8px 20px rgba(0, 0, 0, 0.25)'
+             }}>
+            <form onSubmit={handleSubmit} className="w-full flex flex-col items-center">
+                <input
+                    type="text"
+                    placeholder="First Name"
+                    value={Fname}
+                    onChange={(e) => setFname(e.target.value)}
+                    required
+                    className="w-full border border-gray-400 rounded-2xl text-sm focus:outline-none focus:bg-white focus:shadow-blue-200"
+                    style={{
+                        maxWidth: '320px',
+                        padding: '10px 18px',
+                        margin: '10px 0',
+                        backgroundColor: '#faf8f8',
+                        fontSize: '14px',
+                        boxShadow: 'none'
+                    }}
+                    onFocus={(e) => {
+                        e.target.style.backgroundColor = '#fff';
+                        e.target.style.boxShadow = '0 0 0 2px rgba(0, 119, 255, 0.2)';
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.backgroundColor = '#faf8f8';
+                        e.target.style.boxShadow = 'none';
+                    }}
+                />
+                <input
+                    type="text"
+                    placeholder="Last Name"
+                    value={Lname}
+                    onChange={(e) => setLname(e.target.value)}
+                    required
+                    className="w-full border border-gray-400 rounded-2xl text-sm focus:outline-none focus:bg-white focus:shadow-blue-200"
+                    style={{
+                        maxWidth: '320px',
+                        padding: '10px 18px',
+                        margin: '10px 0',
+                        backgroundColor: '#faf8f8',
+                        fontSize: '14px',
+                        boxShadow: 'none'
+                    }}
+                    onFocus={(e) => {
+                        e.target.style.backgroundColor = '#fff';
+                        e.target.style.boxShadow = '0 0 0 2px rgba(0, 119, 255, 0.2)';
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.backgroundColor = '#faf8f8';
+                        e.target.style.boxShadow = 'none';
+                    }}
+                />
+                <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="w-full border border-gray-400 rounded-2xl text-sm focus:outline-none focus:bg-white focus:shadow-blue-200"
+                    style={{
+                        maxWidth: '320px',
+                        padding: '10px 18px',
+                        margin: '10px 0',
+                        backgroundColor: '#faf8f8',
+                        fontSize: '14px',
+                        boxShadow: 'none'
+                    }}
+                    onFocus={(e) => {
+                        e.target.style.backgroundColor = '#fff';
+                        e.target.style.boxShadow = '0 0 0 2px rgba(0, 119, 255, 0.2)';
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.backgroundColor = '#faf8f8';
+                        e.target.style.boxShadow = 'none';
+                    }}
+                />
+                <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full border border-gray-400 rounded-2xl text-sm focus:outline-none focus:bg-white focus:shadow-blue-200"
+                    style={{
+                        maxWidth: '320px',
+                        padding: '10px 18px',
+                        margin: '10px 0',
+                        backgroundColor: '#faf8f8',
+                        fontSize: '14px',
+                        boxShadow: 'none'
+                    }}
+                    onFocus={(e) => {
+                        e.target.style.backgroundColor = '#fff';
+                        e.target.style.boxShadow = '0 0 0 2px rgba(0, 119, 255, 0.2)';
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.backgroundColor = '#faf8f8';
+                        e.target.style.boxShadow = 'none';
+                    }}
+                />
+                <Link to="/login" className='text-blue-500 underline text-left mb-2'>
+                    Already have an account? Login here
+                </Link>
+                <button
+                    type="submit"
+                    className="border-none rounded-2xl font-bold cursor-pointer transition-colors duration-300 hover:bg-blue-800"
+                    style={{
+                        width: '40%',
+                        padding: '4px',
+                        marginTop: '1px',
+                        backgroundColor: '#1a3f78',
+                        color: 'white',
+                        fontSize: '15px'
+                    }}
+                >
+                    Sign Up
+                </button>
+            </form>
+        </div>
+    </div>
+)
 }

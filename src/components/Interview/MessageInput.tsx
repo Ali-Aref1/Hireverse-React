@@ -34,7 +34,7 @@ export const MessageInput = ({ onSend, loading, isListening, phase }: MessageInp
   };
 
   return (
-    <div className={`flex items-center gap-4 justify-center w-full bg-secondary p-4 rounded-full transition opacity ${(phase=="coding"||phase=="end") && "opacity-0 height-0"}`}>
+    <div className={`flex items-center gap-4 justify-center w-full bg-primary p-4 rounded-full transition opacity ${(phase=="coding"||phase=="end") && "opacity-0 height-0"}`}>
       <input
         type="text"
         className="bg-white text-black p-4 rounded-full w-full outline-none"

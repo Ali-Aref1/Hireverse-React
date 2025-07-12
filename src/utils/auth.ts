@@ -19,6 +19,23 @@ export async function handleLogin(
   }
 }
 
+// Frontend: handle logout
+export async function handleLogout(
+  user: any,
+  setUser: React.Dispatch<React.SetStateAction<any>>
+) {
+  const prevUser = user;
+  setUser(null);
+  try{
+    const response = await axios.post('http://localhost:3000/logout', {}, { withCredentials: true });
+    console.log("User logged out successfully", response.data);
+  }
+  catch (error) {
+    console.error("Error logging out:", error);
+    setUser(prevUser); // Restore previous user state on error
+  }
+}
+
 // Frontend: handle register
 export async function handleRegister(
   Fname: string,

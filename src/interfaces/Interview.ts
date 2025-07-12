@@ -1,5 +1,6 @@
 export interface Interview {
     _id: string; // Mongoose document ID (optional if not always present)
+    name?: string;
     user_id: string;
     duration: number;
     video_path: string;

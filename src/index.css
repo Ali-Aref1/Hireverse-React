@@ -23,3 +23,13 @@
 ::-webkit-scrollbar-thumb:hover {
     background: #2f3947;
 }
+
+@font-face {
+    font-family: 'Toxigenesis';
+    src: url(".\assets\fonts\toxigenesis bd.otf");
+}
+
+@font-face{
+    font-family: 'SF-Pro';
+    src: url("./assets/fonts/SF-Pro.ttf");
+}

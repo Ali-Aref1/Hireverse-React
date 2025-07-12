@@ -8,8 +8,10 @@ import { refreshToken, getUserInfo } from './utils/auth';
 import { jwtDecode } from 'jwt-decode';
 import { Register } from './pages/Register';
 import { PixelStreamingWrapper } from './components/Interview/PixelStreamingWrapper';
+import { Navbar } from './components/common/Navbar';
+import { Profile } from './pages/Profile';
 
-interface UserData {
+type UserData = {
   id: string;
   accessToken: string;
   data: {
@@ -17,14 +19,17 @@ interface UserData {
     Lname: string;
     email: string;
   };
-}
+} | null;
 
 interface UserContextType {
-  user: UserData | null;
-  setUser: React.Dispatch<React.SetStateAction<UserData | null>>;
+  user: UserData;
+  setUser: React.Dispatch<React.SetStateAction<UserData>>;
 }
 
-export const UserContext = createContext<UserContextType | null>(null);
+export const UserContext = createContext<UserContextType>({
+  user: null,
+  setUser: () => {},
+});
 
 function App() {
   const [user, setUser] = useState<UserData | null>(null);
@@ -91,33 +96,21 @@ function App() {
 
   return (
     <UserContext.Provider value={{ user, setUser }}>
-      <div className="w-screen h-screen overflow-hidden bg-primary z-0 relative text-white bg-base">
+      <div className='fixed inset-0 bg-base w-full h-full bg-no-repeat bg-cover bg-background'></div>
+      <div className='fixed inset-0 bg-black bg-opacity-50 w-full h-full'></div>
+      <div className="min-h-screen w-full relative text-white font-body">
         <Router>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/interview" element={<Interview />} />
-            <Route path="/interviews" element={<ResultsDashboard />} />
-            <Route path ="/avatartest" element={<div
-            style={{
-                height: '100%',
-                width: '100%'
-            }}
-        >
-            <PixelStreamingWrapper
-                initialSettings={{
-                    AutoPlayVideo: true,
-                    AutoConnect: true,
-                    ss: 'ws://localhost:80',
-                    StartVideoMuted: false,
-                    HoveringMouse: true,
-                    WaitForStreamer: true,
-                    StreamerId: 'DefaultStreamer'
-                }}
-            />
-        </div>}/>
-          </Routes>
+          <Navbar />
+            <main className="pt-24 overflow-y-auto h-screen">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/interview" element={<Interview />} />
+              <Route path="/interviews" element={<ResultsDashboard />} />
+              <Route path="/profile/:id" element={<Profile/>} />
+            </Routes>
+          </main>
         </Router>
       </div>
     </UserContext.Provider>

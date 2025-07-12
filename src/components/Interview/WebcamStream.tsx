@@ -4,12 +4,13 @@ import { Socket } from "socket.io-client";
 interface WebcamStreamProps {
   socket: Socket;
   userId: string;
+  connectionQuality?: 'good' | 'poor' | 'disconnected';
 }
 
 const WEBCAM_WIDTH = 340;
 const WEBCAM_HEIGHT = 240;
 
-const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
+const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId, connectionQuality = 'good' }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
@@ -143,34 +144,152 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
     let stream: MediaStream;
     let mediaRecorder: MediaRecorder;
     let stopped = false;
+    let chunkQueue: Blob[] = [];
+    let isProcessingQueue = false;
+
+    const processChunkQueue = async () => {
+      if (isProcessingQueue || chunkQueue.length === 0) return;
+      isProcessingQueue = true;
+
+      while (chunkQueue.length > 0) {
+        const chunk = chunkQueue.shift();
+        if (chunk && chunk.size > 0) {
+          try {
+            const buffer = await chunk.arrayBuffer();
+            socket.emit("video_chunk", { userId, chunk: Array.from(new Uint8Array(buffer)) });
+          } catch (err) {
+            console.error("[WebRTC] Error processing chunk:", err);
+          }
+        }
+        // Small delay to prevent overwhelming the socket
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      isProcessingQueue = false;
+    };
 
     const startWebcamAndStream = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // Adapt constraints based on connection quality
+        const getConstraints = () => {
+          switch (connectionQuality) {
+            case 'poor':
+              return {
+                video: {
+                  width: { ideal: 320, max: 640 },
+                  height: { ideal: 240, max: 480 },
+                  frameRate: { ideal: 10, max: 15 }
+                },
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                  sampleRate: 16000 // Even lower sample rate for poor connections
+                }
+              };
+            case 'disconnected':
+              return null; // Don't start stream if disconnected
+            default: // 'good'
+              return {
+                video: {
+                  width: { ideal: 640, max: 1280 },
+                  height: { ideal: 480, max: 720 },
+                  frameRate: { ideal: 15, max: 24 }
+                },
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                  sampleRate: 22050
+                }
+              };
+          }
+        };
+
+        const constraints = getConstraints();
+        if (!constraints) {
+          console.log("[WebRTC] Skipping stream start due to disconnected state");
+          return;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
 
-        const peer = new RTCPeerConnection();
+        // Configure peer connection with bandwidth constraints
+        const peer = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
         peerRef.current = peer;
 
-        // Create DataChannel for video chunks
-        const dataChannel = peer.createDataChannel("videoChunks");
+        // Add bandwidth constraints based on connection quality
+        const getBitrateSettings = () => {
+          switch (connectionQuality) {
+            case 'poor':
+              return {
+                video: 150000, // 150 kbps
+                audio: 32000,  // 32 kbps
+                recording: {
+                  videoBitsPerSecond: 100000, // 100 kbps
+                  audioBitsPerSecond: 32000   // 32 kbps
+                },
+                chunkInterval: 2000 // 2 second chunks for poor connections
+              };
+            default: // 'good'
+              return {
+                video: 500000, // 500 kbps
+                audio: 64000,  // 64 kbps
+                recording: {
+                  videoBitsPerSecond: 250000, // 250 kbps
+                  audioBitsPerSecond: 64000   // 64 kbps
+                },
+                chunkInterval: 1000 // 1 second chunks for good connections
+              };
+          }
+        };
+
+        const bitrateSettings = getBitrateSettings();
+
+        // Add bandwidth constraints
+        const sender = peer.addTrack(stream.getVideoTracks()[0], stream);
+        const params = sender.getParameters();
+        if (!params.encodings) params.encodings = [{}];
+        params.encodings[0].maxBitrate = bitrateSettings.video;
+        await sender.setParameters(params);
+
+        // Create DataChannel for video chunks with optimized settings
+        const dataChannel = peer.createDataChannel("videoChunks", {
+          ordered: false, // Allow out-of-order delivery for better performance
+          maxRetransmits: 0 // Don't retransmit lost packets
+        });
         dataChannelRef.current = dataChannel;
 
         dataChannel.onopen = () => {
           console.log("[WebRTC] DataChannel is open, starting MediaRecorder");
-          mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp8,opus" });
+          // Use adaptive quality settings for recording
+          const options = {
+            mimeType: "video/webm; codecs=vp8,opus",
+            videoBitsPerSecond: bitrateSettings.recording.videoBitsPerSecond,
+            audioBitsPerSecond: bitrateSettings.recording.audioBitsPerSecond
+          };
+
+          try {
+            mediaRecorder = new MediaRecorder(stream, options);
+          } catch (err) {
+            // Fallback to default settings if custom options fail
+            console.warn("[WebRTC] Custom MediaRecorder options failed, using defaults:", err);
+            mediaRecorder = new MediaRecorder(stream);
+          }
 
           mediaRecorder.ondataavailable = (event) => {
             if (event.data && event.data.size > 0) {
-              event.data.arrayBuffer().then(buffer => {
-                socket.emit("video_chunk", { userId, chunk: Array.from(new Uint8Array(buffer)) });
-              });
+              chunkQueue.push(event.data);
+              processChunkQueue();
             }
           };
 
-          mediaRecorder.start(500); // 500ms chunks
+          // Use adaptive chunk interval based on connection quality
+          mediaRecorder.start(bitrateSettings.chunkInterval);
         };
 
         // WebRTC signaling via Socket.IO
@@ -206,6 +325,10 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
         cleanupRef.current = () => {
           if (stopped) return;
           stopped = true;
+          
+          // Clear any remaining chunks
+          chunkQueue = [];
+          
           if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
             // Delay closing the peer connection to allow the end message to be sent
@@ -231,7 +354,8 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
           }
         };
       } catch (err) {
-        alert("Could not access webcam/microphone.");
+        console.error("[WebRTC] Error accessing webcam/microphone:", err);
+        alert("Could not access webcam/microphone. Please check your permissions.");
       }
     };
 
@@ -241,7 +365,7 @@ const WebcamStream: React.FC<WebcamStreamProps> = ({ socket, userId }) => {
       if (cleanupRef.current) cleanupRef.current();
     };
     // eslint-disable-next-line
-  }, [socket, userId]);
+  }, [socket, userId, connectionQuality]);
 
   return (
     <div
