@@ -34,6 +34,19 @@ export interface Interview {
             NotAwkward: number;
             NotStressed: number;
         };
+        emotion?: {
+            dominant_emotion: string;
+            dominant_percentage: number;
+            total_messages_analyzed: number;
+            emotion_breakdown: {
+                sadness: number;
+                happiness: number;
+                anger: number;
+                fear: number;
+                surprise: number;
+                neutral: number;
+            };
+        };
     };
 }
 export interface Message {

@@ -108,7 +108,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/interview" element={<Interview />} />
               <Route path="/interviews" element={<ResultsDashboard />} />
-              <Route path="/profile/:id" element={<Profile/>} />
+              <Route path="/profile" element={<Profile/>} />
             </Routes>
           </main>
         </Router>
